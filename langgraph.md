@@ -41,7 +41,10 @@
   - [Subgraphs](#subgraphs)
     - [Option 1: Shared Schema](#option-1-shared-schema)
     - [Option 2: Different Schema](#option-2-different-schema)
-  - [Streaming the app](#streaming-the-app)
+  - [Streaming at end of every node](#streaming-at-end-of-every-node)
+    - [Values mode](#values-mode)
+    - [Update mode](#update-mode)
+  - [Streaming at end of every token](#streaming-at-end-of-every-token)
   - [Seeing the graph](#seeing-the-graph)
   - [CheckPointers in Langgraph](#checkpointers-in-langgraph)
     - [In Memory checkpointer](#in-memory-checkpointer)
@@ -624,23 +627,69 @@ def search_agent(state: QueryState) -> Dict:
 parent_graph = StateGraph(QueryState)
 ```
 
-## Streaming the app
+## Streaming at end of every node
+- The .stream and .astream are sync and async methods are used for streaming from a graph run
+- Most common modes are
 - Instead of `invoke` we use `stream` to see realtime output from each node
+-   
+### Values mode
+- `stream_mode = "values"` streams full value of each state after each step of the graph
 ```python
-events = app.stream({
-    "messages": [HumanMessage(content="What is the current weather in Boston?")]
-}, config=config, stream_mode="values")
+events = app.stream(input=input, stream_mode="values")
 
-for event in events:
-    event["messages"][-1].pretty_print()
+for event in events: 
+    print(event["messages"])
 ```
-- Need to print the events as they occur
+- Prints the `event["messages"]`
+
+
+### Update mode
+- `stream_mode = "updates"` streams updates to the state after each step of the graph. Shows only the last update
+```python
+events = app.stream(input=input, stream_mode="updates")
+
+for event in events: 
+    print(event)
+```
+- Prints the `event` without the messages
+- Printing `print(event["messages"])` throws an error with `updates`
+
+## Streaming at end of every token
+- Use `astream_events` whoch steams events inside a node
+- Makes the updates real-time and user can see what's going on 
+- Each event is a dict with the following keys
+  - `event'`: Type of event being emitted
+  - `name`: The name of the event
+  - `data`: The data associated with the event
+  - `metadata`: Contains the `langgraph_node` key, the node emitting the event
+- Need to use the `async` keyword while iterating the events
+```python
+input = {
+    "messages": ["Hi, how are you?"]
+}
+events = app.astream_events(input=input, version="v2")
+async for event in events: 
+    if event["event"] == "on_chain_stream":
+        #print(event["data"]["chunk"].content, end="", flush=True)
+        print(event["data"]["chunk"], end="", flush=True)
+```
+- Need to print only `on_chain_stream` 
+- The `flush=True` prints the words instead of caching them
+
 
 ## Seeing the graph
 - Best way to see the graph is with Juypter notebook using 
 ```python
 from IPython.display import Image, display
 display(Image(app.get_graph().draw_mermaid_png()))
+# another way
+display(
+    Image(
+        app.get_graph().draw_mermaid_png(
+            draw_method=MermaidDrawMethod.API
+        )
+    )
+)
 ```
 
 ## CheckPointers in Langgraph
