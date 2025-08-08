@@ -34,6 +34,7 @@
     - [HumanMessage details](#humanmessage-details)
     - [ToolMessage details](#toolmessage-details)
   - [StateGraph](#stategraph)
+    - [MessageState Class](#messagestate-class)
     - [streammode](#streammode)
     - [graph end](#graph-end)
     - [updating graph state](#updating-graph-state)
@@ -55,6 +56,7 @@
     - [add\_messages](#add_messages)
     - [dumps](#dumps)
     - [ToolNode](#toolnode)
+    - [react\_agent](#react_agent)
 
 # Python packages
 ## Typing package
@@ -499,6 +501,17 @@ state = {
 }
 result = app.invoke(state)
 ```
+
+### MessageState Class
+- Built in class from langgraph that provides a class of messages
+```python
+from langgraph.graph import MessagesState
+def supervisor_node(state: MessagesState){
+
+}
+```
+- The main key in `state` is `messages` used as `state["messages"]`
+
 ### streammode
 - Setting stream mode in invoking allows us to see intermediate states
 - Code is `result = app.invoke(state, stream_mode="updates")`
@@ -747,3 +760,37 @@ graph.add_node("tool_node", tool_node)
 ```
 - the ToolNode looks for the `messages` key in the AI message that is sent to it
 - To use a different key need to change the call to `tool_node = ToolNode(tools=tools, messages_key="somethingElse")`
+
+### react_agent
+- Directly use inbuilt react_agent class in node function 
+- Agent within agent using prebuilt agent tool
+- Excample 1: create a node that does Tavily search but uses a react agent to call LLM and refine the search
+```python
+research_agent = create_react_agent(
+        llm,  
+        tools=[tavily_search],  
+        state_modifier= "You are an Information Specialist with expertise in comprehensive research. Your responsibilities include:\n\n"
+            "1. Identifying key information needs based on the query context\n"
+            "2. Gathering relevant, accurate, and up-to-date information from reliable sources\n"
+            "3. Organizing findings in a structured, easily digestible format\n"
+            "4. Citing sources when possible to establish credibility\n"
+            "5. Focusing exclusively on information gathering - avoid analysis or implementation\n\n"
+            "Provide thorough, factual responses without speculation where information is unavailable."
+    )
+result = research_agent.invoke(state)
+print(result["messages"][-1].content)           # last message in the react chain
+```
+- Example 2: Create a coder
+```python
+code_agent = create_react_agent(
+        llm,
+        tools=[python_repl_tool],
+        state_modifier=(
+            "You are a coder and analyst. Focus on mathematical calculations, analyzing, solving math questions, "
+            "and executing code. Handle technical problem-solving and data tasks."
+        )
+    )
+result = code_agent.invoke(state)
+print(result["messages"][-1].content)           # last message in the react chain
+```
+
